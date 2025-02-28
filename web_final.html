@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Consumo - Versión Modificada</title>
+    <link rel="stylesheet" href="web_final.css">
+</head>
+<body>
+    <div class="app-container">
+        <div class="calculadora-seccion">
+            <h2>Calculadora de Consumo</h2>
+            
+            <div class="input-grupo">
+                <label for="numeroDias">Número de días para el cálculo:</label>
+                <input type="number" id="numeroDias" min="1">
+                <button id="btnCalcular">Calcular Consumo</button>
+            </div>
+            
+            <div class="resultados" id="seccionResultados">
+                <h3>Resultados del Consumo</h3>
+                <div id="resultadoAgua"></div>
+                <div id="resultadoEnergia"></div>
+                <div id="resultadoGastos"></div>
+                
+                <h3>Resumen de Consumo</h3>
+                <div id="resumenMensual"></div>
+                <div id="resumenAnual"></div>
+            </div>
+        </div>
+        
+        <div class="calculadora-seccion">
+            <h3>Simulador de Reducción</h3>
+            <div class="input-grupo">
+                <label for="porcentajeReduccion">Porcentaje de reducción (%): </label>
+                <input type="number" id="porcentajeReduccion" min="0" max="100">
+                <button id="btnReduccion">Simular Reducción</button>
+            </div>
+            
+            <div class="resultados" id="seccionReduccion">
+                <div id="aguaReducida"></div>
+                <div id="energiaReducida"></div>
+                <div id="gastosReducidos"></div>
+            </div>
+        </div>
+        
+        <div class="calculadora-seccion">
+            <h3>Simulador de Autosuficiencia Solar</h3>
+            <div class="input-grupo">
+                <label for="aumentoAutosuficiencia">Aumento de autosuficiencia (%): </label>
+                <input type="number" id="aumentoAutosuficiencia" min="0">
+                <button id="btnAutosuficiencia">Calcular Placas</button>
+            </div>
+            
+            <div class="resultados" id="seccionAutosuficiencia">
+                <div id="infoAutosuficiencia"></div>
+            </div>
+        </div>
+        
+        <div class="consejos">
+            <h3>Consejos para Reducir el Consumo de Agua</h3>
+            <ul>
+                <li>Instala sistemas de doble descarga en los inodoros para ahorrar hasta un 60% de agua.</li>
+                <li>Utiliza riego por goteo en áreas verdes, que puede reducir el consumo hasta en un 70%.</li>
+                <li>Implementa sensores de presencia en los grifos de los baños para evitar que queden abiertos.</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Clase para gestionar el cálculo de consumo
+        class CalculadoraConsumo {
+            constructor() {
+                // Valores predeterminados
+                this.consumoAguaPorDia = 6677.65;
+                this.consumoEnergiaPorDia = 318.3;
+                this.gastoPorDia = 242.79;
+                this.datosListo = false;
+                
+                // Inicializar eventos después de cargar el DOM
+                document.addEventListener('DOMContentLoaded', () => {
+                    this.inicializarEventos();
+                    this.cargarDatosDeConsumo();
+                });
+            }
+            
+            async cargarDatosDeConsumo() {
+                try {
+                    const respuesta = await fetch('datos_diarios.csv');
+                    if (!respuesta.ok) {
+                        throw new Error('No se pudo acceder al archivo de datos');
+                    }
+                    
+                    const texto = await respuesta.text();
+                    const lineas = texto.trim().split('\n');
+                    if (lineas.length < 2) {
+                        throw new Error('El formato del archivo no es correcto');
+                    }
+                    
+                    const valores = lineas[1].split(',');
+                    this.consumoAguaPorDia = parseFloat(valores[0]);
+                    this.consumoEnergiaPorDia = parseFloat(valores[1]);
+                    this.gastoPorDia = parseFloat(valores[2]);
+                    
+                    console.log('Datos de consumo cargados correctamente');
+                } catch (error) {
+                    console.warn('Se utilizarán valores predeterminados:', error.message);
+                }
+                
+                this.datosListo = true;
+            }
+            
+            inicializarEventos() {
+                // Configurar los botones
+                document.getElementById('btnCalcular').addEventListener('click', () => this.calcularConsumoTotal());
+                document.getElementById('btnReduccion').addEventListener('click', () => this.calcularReduccionConsumo());
+                document.getElementById('btnAutosuficiencia').addEventListener('click', () => this.calcularAutosuficiencia());
+            }
+            
+            async esperarDatosListos() {
+                if (!this.datosListo) {
+                    await new Promise(resolve => {
+                        const verificar = () => {
+                            if (this.datosListo) {
+                                resolve();
+                            } else {
+                                setTimeout(verificar, 100);
+                            }
+                        };
+                        verificar();
+                    });
+                }
+            }
+            
+            async calcularConsumoTotal() {
+                await this.esperarDatosListos();
+                
+                const dias = parseInt(document.getElementById('numeroDias').value);
+                if (!dias || dias <= 0) {
+                    alert('Por favor, introduce un número válido de días');
+                    return;
+                }
+                
+                // Aplicar factores estacionales
+                const fecha = new Date();
+                const mes = fecha.getMonth();
+                
+                // Factor para agua en junio (mes 5)
+                const factorAgua = mes === 5 ? 1.2 : 1;
+                
+                // Factor para energía en invierno (diciembre, enero, febrero: 11, 0, 1)
+                const factorEnergia = [11, 0, 1].includes(mes) ? 1.3 : 1;
+                
+                // Cálculos para el período especificado
+                const totalAgua = dias * this.consumoAguaPorDia * factorAgua;
+                const totalEnergia = dias * this.consumoEnergiaPorDia * factorEnergia;
+                const totalGasto = dias * this.gastoPorDia;
+                
+                // Estimaciones mensuales y anuales
+                const aguaMensual = totalAgua * (30 / dias);
+                const energiaMensual = totalEnergia * (30 / dias);
+                const gastoMensual = totalGasto * (30 / dias);
+                
+                const aguaAnual = totalAgua * (365 / dias);
+                const energiaAnual = totalEnergia * (365 / dias);
+                const gastoAnual = totalGasto * (365 / dias);
+                
+                // Mostrar resultados
+                document.getElementById('resultadoAgua').textContent = `Agua: ${totalAgua.toFixed(2)} litros en ${dias} días`;
+                document.getElementById('resultadoEnergia').textContent = `Energía: ${totalEnergia.toFixed(2)} kW en ${dias} días`;
+                document.getElementById('resultadoGastos').textContent = `Gasto: ${totalGasto.toFixed(2)} € en ${dias} días`;
+                
+                document.getElementById('resumenMensual').innerHTML = `
+                    <strong>Mensual:</strong> Agua: ${aguaMensual.toFixed(2)} L | 
+                    Energía: ${energiaMensual.toFixed(2)} kW | 
+                    Gasto: ${gastoMensual.toFixed(2)} €
+                `;
+                
+                document.getElementById('resumenAnual').innerHTML = `
+                    <strong>Anual:</strong> Agua: ${aguaAnual.toFixed(2)} L | 
+                    Energía: ${energiaAnual.toFixed(2)} kW | 
+                    Gasto: ${gastoAnual.toFixed(2)} €
+                `;
+            }
+            
+            async calcularReduccionConsumo() {
+                await this.esperarDatosListos();
+                
+                const porcentaje = parseFloat(document.getElementById('porcentajeReduccion').value);
+                if (isNaN(porcentaje) || porcentaje < 0 || porcentaje > 100) {
+                    alert('Por favor, introduce un porcentaje válido entre 0 y 100');
+                    return;
+                }
+                
+                const factor = 1 - (porcentaje / 100);
+                const aguaReducida = this.consumoAguaPorDia * factor;
+                const energiaReducida = this.consumoEnergiaPorDia * factor;
+                const gastoReducido = this.gastoPorDia * factor;
+                
+                document.getElementById('aguaReducida').textContent = `Nuevo consumo de agua: ${aguaReducida.toFixed(2)} L/día`;
+                document.getElementById('energiaReducida').textContent = `Nuevo consumo de energía: ${energiaReducida.toFixed(2)} kW/día`;
+                document.getElementById('gastosReducidos').textContent = `Nuevo gasto diario: ${gastoReducido.toFixed(2)} €/día`;
+            }
+            
+            async calcularAutosuficiencia() {
+                await this.esperarDatosListos();
+                
+                const aumento = parseFloat(document.getElementById('aumentoAutosuficiencia').value);
+                if (isNaN(aumento) || aumento < 0) {
+                    alert('Por favor, introduce un valor válido para el aumento de autosuficiencia');
+                    return;
+                }
+                
+                // Cálculo de paneles solares necesarios
+                const autosuficienciaBase = 10; // Porcentaje actual
+                const autosuficienciaTotal = autosuficienciaBase + aumento;
+                const consumoAnual = this.consumoEnergiaPorDia * 365;
+                const energiaNecesaria = (autosuficienciaTotal / 100) * consumoAnual;
+                
+                // Factor de conversión para el cálculo de placas
+                const produccionPorPlaca = 180000 * 0.1 / 136; // kWh producidos por placa
+                const totalPlacas = energiaNecesaria / produccionPorPlaca;
+                const placasActuales = 136;
+                const placasAdicionales = Math.max(0, Math.ceil(totalPlacas - placasActuales));
+                
+                document.getElementById('infoAutosuficiencia').innerHTML = `
+                    <strong>Resultado:</strong> Se necesitan ${placasAdicionales} placas solares adicionales 
+                    para alcanzar un ${autosuficienciaTotal.toFixed(1)}% de autosuficiencia energética.
+                `;
+            }
+        }
+        
+        // Iniciar la calculadora
+        const calculadora = new CalculadoraConsumo();
+    </script>
+</body>
+</html>
